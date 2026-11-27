@@ -203,9 +203,85 @@ elif page == "Interactive Map":
 # NEW REPORT
 # ------------------------------------------------
 
+# ------------------------------------------------
+# NEW REPORT
+# ------------------------------------------------
+
 elif page == "New Report":
 
     st.title("Create New INNS Report")
+
+    st.subheader("Select Report Location")
+
+    map_centre = [54.6, -2.8]
+
+    report_map = folium.Map(
+        location=map_centre,
+        zoom_start=8
+    )
+
+    # Existing Reports
+
+    if len(reports) > 0:
+
+        for _, row in reports.iterrows():
+
+            colour = "red"
+
+            if row["Status"] == "Under Treatment":
+                colour = "orange"
+
+            elif row["Status"] == "Eradicated":
+                colour = "green"
+
+            elif row["Status"] == "Monitoring":
+                colour = "blue"
+
+            folium.Marker(
+                [
+                    row["Latitude"],
+                    row["Longitude"]
+                ],
+                popup=f"""
+                Species: {row['Species']}
+                <br>
+                Site: {row['Site']}
+                """,
+                icon=folium.Icon(color=colour)
+            ).add_to(report_map)
+
+    map_data = st_folium(
+        report_map,
+        width=1200,
+        height=500
+    )
+
+    latitude = None
+    longitude = None
+
+    if map_data.get("last_clicked"):
+
+        latitude = round(
+            map_data["last_clicked"]["lat"],
+            6
+        )
+
+        longitude = round(
+            map_data["last_clicked"]["lng"],
+            6
+        )
+
+        st.success(
+            f"Location Selected: {latitude}, {longitude}"
+        )
+
+    else:
+
+        st.warning(
+            "Click on the map to select a report location."
+        )
+
+    st.divider()
 
     with st.form("report_form"):
 
@@ -215,16 +291,8 @@ elif page == "New Report":
             "Catchment"
         )
 
-        site = st.text_input("Site")
-
-        latitude = st.number_input(
-            "Latitude",
-            value=54.5
-        )
-
-        longitude = st.number_input(
-            "Longitude",
-            value=-2.5
+        site = st.text_input(
+            "Site Name"
         )
 
         status = st.selectbox(
@@ -244,39 +312,85 @@ elif page == "New Report":
             50
         )
 
+        photo = st.file_uploader(
+            "Upload Photo (Optional)",
+            type=[
+                "jpg",
+                "jpeg",
+                "png"
+            ]
+        )
+
         submit = st.form_submit_button(
             "Save Report"
         )
 
         if submit:
 
-            new_record = pd.DataFrame(
-                [{
-                    "Species": species,
-                    "Catchment": catchment,
-                    "Site": site,
-                    "Latitude": latitude,
-                    "Longitude": longitude,
-                    "Status": status,
-                    "Date": date.today(),
-                    "Risk Score": risk_score
-                }]
-            )
+            if latitude is None:
 
-            reports = pd.concat(
-                [
-                    reports,
-                    new_record
-                ]
-            )
+                st.error(
+                    "Please click a location on the map before saving."
+                )
 
-            reports.to_csv(
-                "data/inns_reports.csv",
-                index=False
-            )
+            else:
 
-            st.success("Report saved")
+                # Save photo if uploaded
 
+                photo_name = ""
+
+                if photo is not None:
+
+                    import os
+
+                    os.makedirs(
+                        "uploads",
+                        exist_ok=True
+                    )
+
+                    photo_name = photo.name
+
+                    with open(
+                        f"uploads/{photo.name}",
+                        "wb"
+                    ) as f:
+
+                        f.write(
+                            photo.getbuffer()
+                        )
+
+                new_record = pd.DataFrame(
+                    [{
+                        "Species": species,
+                        "Catchment": catchment,
+                        "Site": site,
+                        "Latitude": latitude,
+                        "Longitude": longitude,
+                        "Status": status,
+                        "Date": date.today(),
+                        "Risk Score": risk_score,
+                        "Photo": photo_name
+                    }]
+                )
+
+                reports = pd.concat(
+                    [
+                        reports,
+                        new_record
+                    ],
+                    ignore_index=True
+                )
+
+                reports.to_csv(
+                    "data/inns_reports.csv",
+                    index=False
+                )
+
+                st.success(
+                    "INNS Report Saved Successfully"
+                )
+
+                st.rerun()
 # ------------------------------------------------
 # TREATMENTS
 # ------------------------------------------------
